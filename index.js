@@ -4,11 +4,7 @@ import { errorMessages, handleError } from "./src/helper.js";
 
 //_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*
 
-// const accounts = await getAllSlaveAccounts();
-// // const numSlaves = accounts.length;
-// // for (let i = 0; i < numSlaves; i++) {
-// //   console.log(accounts[i].username);
-// // }
+// const slaveUsername = "katebentleyx";
 
 (async () => {
   const usernamesArray = await scrapeFollowers(slaveUsername, cookies);
