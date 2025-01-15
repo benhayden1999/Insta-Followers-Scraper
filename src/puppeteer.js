@@ -10,8 +10,14 @@ const SELECTORS = {
   followersUsernames: 'a._a6hd:not([href="#"]) > div > div > span',
 };
 
-async function scrapeFollowers(slaveUsername, cookies) {
+async function scrapeFollowers(slaveUsername, cookies, proxy = null) {
   // Launch the browser using chrome-aws-lambda
+  const args = [...chromium.args];
+  if (proxy) {
+    const proxyUrl = `${proxy.url}:${proxy.port || 8080}`;
+    args.push(`--proxy-server=${proxy}`);
+  }
+
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
@@ -22,6 +28,14 @@ async function scrapeFollowers(slaveUsername, cookies) {
   let page;
   try {
     page = await browser.newPage();
+
+    // Authenticate if using a proxy with credentials
+    if (proxy) {
+      await page.authenticate({
+        username: proxy.username,
+        password: proxy.password,
+      });
+    }
 
     // Set User-Agent
     await page.setUserAgent(
