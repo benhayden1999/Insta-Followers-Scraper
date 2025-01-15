@@ -23,7 +23,7 @@ export async function getNumFollowersFromScroller(page, scroller) {
   }, scroller);
 
   if (count === null) {
-    throw new Error("Scroller followers container not found.");
+    throw new Error("errorGetScrollerFollowers");
   }
 
   return count;

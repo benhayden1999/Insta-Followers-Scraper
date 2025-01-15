@@ -1,6 +1,14 @@
-import chromium from "chrome-aws-lambda";
+import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
-import getNumFollowersFromScroller from "./helper.js";
+import { getNumFollowersFromScroller } from "./helper.js";
+
+const SELECTORS = {
+  editProfile: 'a[href="/accounts/edit/"]',
+  followersLink: 'a[href$="/followers/"]',
+  followersScroller:
+    ".xyi19xy.x1ccrb07.xtf3nb5.x1pc53ja.x1lliihq.x1iyjqo2.xs83m0k.xz65tgg.x1rife3k.x1n2onr6",
+  followersUsernames: 'a._a6hd:not([href="#"]) > div > div > span',
+};
 
 async function scrapeFollowers(slaveUsername, cookies) {
   // Launch the browser using chrome-aws-lambda
@@ -27,35 +35,32 @@ async function scrapeFollowers(slaveUsername, cookies) {
     await page.goto(`https://www.instagram.com/${slaveUsername}/`);
 
     // Check if user is logged in
-    try {
-      await page.waitForSelector('a[href="/accounts/edit/"]', {
+    await page
+      .waitForSelector(SELECTORS.editProfile, {
         timeout: 5000,
+      })
+      .catch(() => {
+        throw new Error("errorCookies");
       });
-    } catch (error) {
-      throw new Error("errorCookies");
-    }
 
     // Locate and click on followers link
-    try {
-      await page.waitForSelector('a[href$="/followers/"]', { timeout: 5000 });
-      await page.click('a[href$="/followers/"]');
-    } catch (error) {
-      throw new Error("errorFollowersLink");
-    }
+    await page
+      .waitForSelector(SELECTORS.followersLink, {
+        timeout: 5000,
+      })
+      .catch(() => {
+        throw new Error("errorFollowersLink");
+      });
 
     // Wait for followers modal to load
-    let scroller;
-    try {
-      scroller = await page.waitForSelector(
-        ".xyi19xy.x1ccrb07.xtf3nb5.x1pc53ja.x1lliihq.x1iyjqo2.xs83m0k.xz65tgg.x1rife3k.x1n2onr6",
-        { timeout: 5000 }
-      );
-    } catch (error) {
-      throw new Error("errorLoadingFollowersmodal");
-    }
+    const scroller = await page
+      .waitForSelector(SELECTORS.followersScroller, { timeout: 5000 })
+      .catch(() => {
+        throw new Error("errorLoadingFollowersmodal");
+      });
 
-    // Extract followers count and scroll
-    let followersCount = await page.evaluate(() => {
+    // Extract followers count
+    const followersCount = await page.evaluate(() => {
       const followersElement = document.querySelector(
         'a[href$="/followers/"] span[title]'
       );
@@ -68,41 +73,29 @@ async function scrapeFollowers(slaveUsername, cookies) {
       throw new Error("errorGetNumFollowers");
     }
 
-    // Get num followers from scroller
-    let searchedNumFollowers;
-    try {
-      searchedNumFollowers = await getNumFollowersFromScroller(page, scroller);
-    } catch (error) {
-      throw new Error("errorGetScrollerFollowers");
-    }
-
+    // Scroll and load followers
+    let searchedNumFollowers = 0;
     while (followersCount !== searchedNumFollowers) {
       console.log(
         `Followers loaded: ${searchedNumFollowers}/${followersCount}`
       );
+      searchedNumFollowers = await getNumFollowersFromScroller(page, scroller);
 
-      // Scroll down
       await page.evaluate((scroller) => {
-        scroller.scrollTop = scroller.scrollHeight; // Scroll to the bottom
+        scroller.scrollTop = scroller.scrollHeight;
       }, scroller);
 
-      // Wait before re-evaluating
       await new Promise((resolve) => setTimeout(resolve, 100));
-
-      searchedNumFollowers = await getNumFollowersFromScroller(page, scroller);
     }
 
     // Extract usernames
-    const usernames = await page.evaluate(() => {
-      const usernameElements = document.querySelectorAll(
-        'a._a6hd:not([href="#"]) > div > div > span'
-      );
+    const usernames = await page.evaluate((selector) => {
+      const usernameElements = document.querySelectorAll(selector);
       return Array.from(usernameElements).map((el) => el.innerText);
-    });
+    }, SELECTORS.followersUsernames);
 
     return usernames;
   } catch (error) {
-    console.error("Error during scraping:", error);
     return { status: "error", message: error.message };
   } finally {
     if (page) await page.close();
